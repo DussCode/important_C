@@ -18,11 +18,15 @@
 typedef struct cpstruct
 {
     //int *arr_CP;
-    int arr_1[10];
-    int arr_2[10];
+    int arr_R[10];
+    int arr_W[10];
 }cpstruct;
 
-sem_t Sem_Writer_Duss, Sem_Reader_Cris;
+sem_t Sem_Writers, Sem_Readers;
+pthread_mutex_t roger;
+
+int allowed_writing = 1;
+int allowed_reading = 0;
 
 void *Reader_Cris(void *);
 void *Writer_Duss(void *);
@@ -35,35 +39,38 @@ int main()
     int i = 0;
     int chunk_readers = 0;
 
-    printf("number of th_readers : ");
-    scanf("%d", &chunk_readers);
+    //printf("number of th_readers : ");
+    //scanf("%d", &chunk_readers);
 
-    pthread_t th_writer, th_readers[chunk_readers];
-
-    sem_init(&Sem_Writer_Duss, 0, 1);
-    sem_init(&Sem_Reader_Cris, 0, 0);
+    pthread_mutex_init(&roger, NULL);
+    pthread_t th_writer, th_readers;
+    //[chunk_readers]
+    sem_init(&Sem_Writers, 0, 1);
+    sem_init(&Sem_Readers, 0, 0);
 
     pthread_create(&th_writer, NULL, &Writer_Duss, r);
 
-    for (i = 0; i < chunk_readers; i++)
-    {
-        pthread_create(&th_readers[i], NULL, &Reader_Cris, r);
-    }
-
+    //for (i = 0; i < chunk_readers; i++)
+    //{
+        pthread_create(&th_readers, NULL, &Reader_Cris, r);
+    //}
+    //[i]
     pthread_join(th_writer, NULL);
 
-    for (i = 0; i < chunk_readers; i++)
-    {
-        pthread_join(th_readers[i], NULL);
-    }
+    //for (i = 0; i < chunk_readers; i++)
+    //{
+        pthread_join(th_readers, NULL);
+        //}[i]
 
     for (i = 0; i < 10; i++)
     {
-        printf(r -> arr_1[i]);
+        printf(r->arr_R[i]);
     }
 
-    sem_destroy(&Sem_Writer_Duss);
-    sem_destroy(&Sem_Reader_Cris);
+    pthread_mutex_destroy(&roger);
+
+    sem_destroy(&Sem_Writers);
+    sem_destroy(&Sem_Readers);
 
     return 0;
 }
@@ -72,8 +79,28 @@ int main()
 
 void *Reader_Cris(void *arg)
 {
+/*
+    sem_post(&Sem_Readers);
+    int *arr_2 = (int *)arg;
+    int i = 0;
+    /*
+    if (((cpstruct *)arg) -> arr_W[0] == NULL)
+    {
+        printf("THERE'S NOTHING INSIDE THE ARRAY")
+        sem_wait(&Sem_Readers);
+    }
+*/
+/*
+    pthread_mutex_lock(&roger);
 
+    for(i = 0; i < 10; i++)
+    {
+        arr_2[i] += 1;
+        ((cpstruct *)arg)->arr_R[i] = arr_2[i];
+    }
 
+    pthread_mutex_unlock(&roger);
+*/
     pthread_exit(0);
 }
 
@@ -81,20 +108,34 @@ void *Reader_Cris(void *arg)
 
 void *Writer_Duss(void *arg)
 {
-    int *Arr_W_Function = (int *)arg;
+    int *arr_1 = (int *)arg;
     int i = 0;
     int arr_length = 10;
 
-    for(i = 0; i < 10; i++)
-    {
-        Arr_W_Function[i] += 1;
+    //pthread_mutex_lock(&roger);
 
-        if(Arr_W_Function[10] == 1)
+    sem_wait(&Sem_Writers);
+
+    while (allowed_writing == 1)
+    {
+        for (i = 0; i < arr_length; i++)
         {
-            sem_wait(&Sem_Writer_Duss);
-            printf("going reader");
+            arr_1[i] += 1;
+            ((cpstruct *)arg)->arr_W[i] = arr_1[i];
         }
+
+        allowed_writing -= 1;
+        allowed_reading += 1;
+        sem_post(&Sem_Readers);
+
+        for (i = 0; i < arr_length; i++)
+        {
+            printf(((cpstruct *)arg)->arr_W[i]);
+        }
+        printf("READER_TIME");
     }
+
+    //pthread_mutex_unlock(&roger);
 
     pthread_exit(0);
 }
